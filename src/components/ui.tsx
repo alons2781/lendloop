@@ -190,7 +190,7 @@ export function Tooltip({
   if (hidden) return <>{children}</>;
   return (
     <span
-      className="group relative inline-flex"
+      className="group relative inline-flex max-sm:flex-1"
       tabIndex={0}
       aria-describedby={id}
     >

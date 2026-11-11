@@ -10,7 +10,7 @@ The signed-out home page shows the tools that are currently available (name and 
 
 **List an item.**
 
-1. Open the "My listings" tab and click "+ List a tool".
+1. Open "My listings" and click "+ List a tool".
 2. Enter a name, pick a category and a condition (Like new / Good / Works with limits), and optionally a description.
 3. Save. The tool now appears in "Browse tools" for every signed-in user and on the public page.
 
@@ -27,10 +27,22 @@ Finished, declined and cancelled loans are under "History".
 
 | Part | Technology | Role |
 |---|---|---|
-| Frontend | Next.js 16 (App Router), React 19, Tailwind CSS 4 | A single page (`src/app/page.tsx`) that renders the public view or the dashboard. `src/proxy.ts` runs Clerk's `clerkMiddleware`. |
+| Frontend | Next.js 16 (App Router), React 19, Tailwind CSS 4 | One route per section (see below). `src/proxy.ts` runs Clerk's `clerkMiddleware`. |
 | Backend | Convex | Database, queries, mutations, scheduled actions and HTTP actions (`convex/`). All access control is enforced here. |
 | Authentication | Clerk | Sign-up, sign-in and the JWT that Convex verifies on every call. The user's role comes from a claim in that JWT. |
 | Notifications | n8n (self-hosted, Docker) | Sends the emails. Runs behind a Caddy gate; Mailpit is the local SMTP inbox. |
+
+Routes (`src/app`): `/` is the public landing page and sends signed-in users to `/browse`. The signed-in routes live in the `(app)` group, which shares one layout (`src/components/app-shell.tsx`) that waits for auth, redirects signed-out visitors to `/`, and shows the greeting and section links:
+
+| Route | Section | Who |
+|---|---|---|
+| `/browse` | Browse tools | users and admins |
+| `/listings` | My listings | users |
+| `/loans` | Current lends & borrows | users |
+| `/history` | History | users |
+| `/admin` | Admin | admins |
+
+Opening a route your role doesn't have redirects to `/browse`. This only decides what is rendered; the Convex functions still enforce every permission.
 
 ```
  Browser ── sign-in ──► Clerk
@@ -79,28 +91,28 @@ A third workflow, `error-handler.json`, is the error workflow of the other two a
 ### User
 
 - Sign up, sign in and sign out through Clerk.
-- Browse all tools, with a category filter. Each card shows the condition, description, lender name and a "Trusted Lender" badge if the lender has one. Availability is shown as a state (requested, on loan) without naming the other borrower.
+- Browse all tools, with a category filter. Each card shows the condition, description, lender name and a "Trusted Lender" badge if the lender has one. Availability is shown as a state (you requested it, you have it, on loan with someone else) without naming the other borrower. A pending request from someone else does not make a tool unavailable.
 - List a tool: name (max 80 characters), category (one of the fixed list), condition, optional description (max 200). Up to 50 listings per user.
 - Edit a listing. Blocked while the tool is borrowed or has a pending request.
 - Delete a listing. Blocked while the tool is borrowed. Pending requests on it are declined and the borrowers are notified.
-- Request to borrow someone else's tool for a date range. Dates must be real calendar dates. The start date cannot be in the past and the end date cannot be before the start. A tool has at most one active loan (requested, approved or return pending), so a second request is rejected.
+- Request to borrow someone else's tool for a date range. Dates must be real calendar dates. The start date cannot be in the past and the end date cannot be before the start. Several people can have a pending request on the same tool, but you cannot request one you already asked for, and a tool that is out on loan (approved or return pending) cannot be requested.
 - Cancel your own request while it is pending.
-- Approve or decline requests on your tools.
+- Approve or decline requests on your tools. Approving one request declines the other pending requests on that tool, and those borrowers are notified.
 - Mark a tool you borrowed as returned ("Return tool").
 - Confirm the return of your tool ("Confirm return"). This closes the loan and deletes the listing; list the tool again to lend it again. The loan keeps a copy of the tool name for history.
 - See "Current lends & borrows" and "History", each split into Borrowing and Lending. History shows 4 entries and a "Show more" button.
 - See an overdue badge and "N days overdue" on approved loans past their end date, and "Reminder sent N days ago" once a reminder is at least a day old.
-- See a counter on the "Current lends & borrows" tab for requests and returns waiting on you as the owner.
+- See a counter on "Current lends & borrows" for requests and returns waiting on you as the owner.
 
 ### Admin
 
-An admin is a Clerk user whose public metadata contains `{ "role": "admin" }`. Admins get two tabs, "Browse tools" and "Admin".
+An admin is a Clerk user whose public metadata contains `{ "role": "admin" }`. Admins get two sections, "Browse tools" and "Admin".
 
 - See all loans in the system (the latest 500, any status) with tool, borrower, dates and status.
 - See the users who have signed in (admins excluded) and mark or unmark each one as a Trusted Lender.
 - Remove any listing from "Browse tools", unless it is currently borrowed. Pending requests on it are declined and the borrowers are notified.
 
-Admins cannot list tools or request to borrow (the server rejects both), cannot edit other users' listings, and never carry the Trusted Lender badge. Promote only fresh accounts: an account that already has listings or loans loses the tabs needed to act on them.
+Admins cannot list tools or request to borrow (the server rejects both), cannot edit other users' listings, and never carry the Trusted Lender badge. Promote only fresh accounts: an account that already has listings or loans loses the sections needed to act on them.
 
 ## Current security measures and optimizations
 
@@ -111,7 +123,7 @@ Admins cannot list tools or request to borrow (the server rejects both), cannot 
 - Ownership is checked on the stored row: only the owner approves, declines and confirms a return; only the borrower cancels a request or marks a tool returned.
 - A return takes two steps. The borrower marks it returned, and the tool stays locked until the owner confirms.
 - Rate limit: a borrower can create at most 10 requests per hour (`MAX_REQUESTS_PER_HOUR` in `convex/loans.ts`). This also bounds the notification emails one account can trigger.
-- One active loan per tool, enforced in the mutation. Convex mutations are serializable transactions, so two concurrent requests cannot both succeed.
+- A tool is out with at most one borrower at a time, enforced in the mutation: approval is rejected if another loan is already approved or awaiting return confirmation, and approving a request declines the other pending ones. Convex mutations are serializable transactions, so two concurrent approvals cannot both succeed.
 - Listings cannot be edited while requested or borrowed, and cannot be deleted while borrowed.
 - Text inputs are trimmed and length-limited on the server (name 80, description 200). Control characters are removed from names and categories (so they cannot add line breaks to email subjects) and from descriptions, which keep their newlines.
 - Category must be one of the fixed list in `convex/lib/categories.ts`, which the UI uses too. A listing created before the list existed can keep its old category when edited.

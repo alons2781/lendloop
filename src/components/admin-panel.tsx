@@ -41,7 +41,7 @@ export function AdminPanel() {
             {users.map((u) => (
               <li
                 key={u._id}
-                className={`${cardCls} flex items-center justify-between gap-4 !py-3`}
+                className={`${cardCls} flex flex-wrap items-center justify-between gap-3 !py-3`}
               >
                 <span className="text-sm font-medium text-stone-800">
                   {u.username}

@@ -30,7 +30,7 @@ export function MyListings() {
       <div className="flex justify-end">
         <button
           type="button"
-          className={btnPrimary}
+          className={`${btnPrimary} max-sm:w-full`}
           onClick={() => setEditing("new")}
         >
           + List a tool
@@ -77,7 +77,7 @@ export function MyListings() {
                 >
                   <button
                     type="button"
-                    className={btnSecondary}
+                    className={`${btnSecondary} max-sm:flex-1`}
                     disabled={tool.borrowed || tool.requested}
                     onClick={() => setEditing(tool)}
                   >
@@ -90,7 +90,7 @@ export function MyListings() {
                 >
                   <button
                     type="button"
-                    className={btnDanger}
+                    className={`${btnDanger} max-sm:flex-1`}
                     disabled={tool.borrowed}
                     onClick={() => onRemove(tool._id, tool.name)}
                   >

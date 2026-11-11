@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Show, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { btnPrimary, btnSecondary } from "@/lib/ui";
 import { HeaderUser } from "./header-user";
-import { buildTabs, useNav, useNeedsAction } from "./nav-context";
+import { buildTabs, useNeedsAction } from "./nav";
 
 function Logo() {
   return (
@@ -24,7 +26,7 @@ export function AppHeader() {
   const { isAuthenticated } = useConvexAuth();
   const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
   const needsAction = useNeedsAction(isAuthenticated);
-  const { tab, setTab } = useNav();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLElement>(null);
 
@@ -49,7 +51,7 @@ export function AppHeader() {
   return (
     <header
       ref={ref}
-      className="relative border-b border-stone-200 bg-white/80 backdrop-blur"
+      className="relative z-40 border-b border-stone-200 bg-white/80 backdrop-blur"
     >
       <div className="mx-auto grid max-w-5xl grid-cols-[1fr_auto_1fr] items-center px-4 py-3 sm:flex sm:justify-between sm:px-6 sm:py-4">
         {/* Hamburger: mobile + signed in only */}
@@ -77,7 +79,9 @@ export function AppHeader() {
           )}
         </div>
 
-        <Logo />
+        <Link href="/" aria-label="LendLoop home">
+          <Logo />
+        </Link>
 
         <div className="flex justify-end">
           <Show when="signed-out">
@@ -110,27 +114,24 @@ export function AppHeader() {
           className="absolute inset-x-0 top-full z-30 border-b border-stone-200 bg-white py-1 shadow-lg sm:hidden"
         >
           {tabs.map((t) => (
-            <li key={t.key}>
-              <button
-                type="button"
-                onClick={() => {
-                  setTab(t.key);
-                  setOpen(false);
-                }}
-                aria-current={tab === t.key ? "page" : undefined}
+            <li key={t.href}>
+              <Link
+                href={t.href}
+                onClick={() => setOpen(false)}
+                aria-current={pathname === t.href ? "page" : undefined}
                 className={`flex w-full items-center justify-between px-5 py-3 text-left text-sm font-medium ${
-                  tab === t.key
+                  pathname === t.href
                     ? "bg-emerald-50 text-emerald-700"
                     : "text-stone-700 active:bg-stone-50"
                 }`}
               >
                 <span>{t.label}</span>
-                {t.key === "current" && needsAction > 0 && (
+                {t.href === "/loans" && needsAction > 0 && (
                   <span className="rounded-full bg-violet-600 px-1.5 py-0.5 text-xs font-semibold text-white">
                     {needsAction}
                   </span>
                 )}
-              </button>
+              </Link>
             </li>
           ))}
         </ul>

@@ -45,7 +45,7 @@ export function RequestModal({
             Request sent. You&apos;ll see its status under <b>Current lends &amp; borrows</b>.
           </p>
           <div className="flex justify-end">
-            <button type="button" className={btnPrimary} onClick={onClose}>
+            <button type="button" className={`${btnPrimary} max-sm:w-full`} onClick={onClose}>
               Done
             </button>
           </div>
@@ -78,7 +78,7 @@ export function RequestModal({
             </Field>
           </div>
           <ErrorNote message={error} />
-          <div className="flex justify-end gap-2">
+          <div className="grid grid-cols-2 gap-3 pt-1 sm:flex sm:justify-end sm:gap-2">
             <button type="button" className={btnSecondary} onClick={onClose}>
               Cancel
             </button>

@@ -6,7 +6,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { errorMessage } from "@/lib/errors";
 import { CATEGORIES, btnDanger, btnPrimary, cardCls } from "@/lib/ui";
-import type { Me } from "./dashboard";
+import { useMe } from "./app-shell";
 import { RequestModal } from "./request-modal";
 import {
   ConditionBadge,
@@ -24,12 +24,11 @@ const UNAVAILABLE_REASON = {
   with_me: "You currently have this tool.",
   returning_by_me:
     "You marked this as returned. Waiting for the owner to confirm.",
-  requested:
-    "Another user already requested this tool and it's pending the owner's approval.",
   on_loan: "This tool is currently with another user.",
 } as const;
 
-export function AllTools({ me }: { me: Me }) {
+export function AllTools() {
+  const me = useMe();
   const [category, setCategory] = useState("");
   const tools = useQuery(api.tools.listAll, {
     category: category || undefined,
@@ -120,7 +119,7 @@ export function AllTools({ me }: { me: Me }) {
                     >
                       <button
                         type="button"
-                        className={btnPrimary}
+                        className={`${btnPrimary} max-sm:flex-1`}
                         disabled={tool.availability !== "available"}
                         onClick={() =>
                           setRequesting({ _id: tool._id, name: tool.name })
@@ -137,7 +136,7 @@ export function AllTools({ me }: { me: Me }) {
                     >
                       <button
                         type="button"
-                        className={btnDanger}
+                        className={`${btnDanger} max-sm:flex-1`}
                         disabled={tool.borrowed}
                         onClick={() => onRemove(tool._id, tool.name)}
                       >

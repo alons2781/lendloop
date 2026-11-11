@@ -159,12 +159,12 @@ function Borrowing({ mode }: { mode: LoanMode }) {
               </p>
               <LoanNotes loan={loan} />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <StatusBadge status={loan.status} overdue={isOverdue(loan)} />
               {loan.status === "requested" && (
                 <button
                   type="button"
-                  className={btnDanger}
+                  className={`${btnDanger} max-sm:flex-1`}
                   disabled={busyId === loan._id}
                   onClick={() =>
                     run(loan._id, () => cancel({ loanId: loan._id }))
@@ -176,7 +176,7 @@ function Borrowing({ mode }: { mode: LoanMode }) {
               {loan.status === "approved" && (
                 <button
                   type="button"
-                  className={btnSecondary}
+                  className={`${btnSecondary} max-sm:flex-1`}
                   disabled={busyId === loan._id}
                   onClick={() =>
                     run(loan._id, () => reportReturned({ loanId: loan._id }))
@@ -255,13 +255,13 @@ function Lending({ mode }: { mode: LoanMode }) {
               </p>
               <LoanNotes loan={loan} />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <StatusBadge status={loan.status} overdue={isOverdue(loan)} />
               {loan.status === "requested" && (
                 <>
                   <button
                     type="button"
-                    className={btnPrimary}
+                    className={`${btnPrimary} max-sm:flex-1`}
                     disabled={busyId === loan._id}
                     onClick={() =>
                       run(loan._id, () =>
@@ -273,7 +273,7 @@ function Lending({ mode }: { mode: LoanMode }) {
                   </button>
                   <button
                     type="button"
-                    className={btnDanger}
+                    className={`${btnDanger} max-sm:flex-1`}
                     disabled={busyId === loan._id}
                     onClick={() =>
                       run(loan._id, () =>
@@ -297,7 +297,7 @@ function Lending({ mode }: { mode: LoanMode }) {
                   </span>
                   <button
                     type="button"
-                    className={btnPrimary}
+                    className={`${btnPrimary} max-sm:flex-1`}
                     disabled={busyId === loan._id}
                     onClick={() =>
                       run(loan._id, () => confirmReturned({ loanId: loan._id }))

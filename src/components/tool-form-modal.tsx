@@ -134,7 +134,7 @@ export function ToolFormModal({
         <div className="grid grid-cols-2 gap-3 pt-1 sm:flex sm:justify-end">
           <button
             type="button"
-            className={`${btnSecondary} !py-2.5`}
+            className={btnSecondary}
             onClick={onClose}
           >
             Cancel
