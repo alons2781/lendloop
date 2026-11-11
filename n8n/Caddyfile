@@ -1,0 +1,27 @@
+# Public-facing gate for n8n. The tunnel (or a production domain) points HERE,
+# never at n8n directly, so the editor, API and every other route stay private.
+{
+	admin off
+}
+
+:8080 {
+	# The ONLY thing exposed: LendLoop's signed loan-event webhook.
+	# Requests without the shared token never reach n8n (so they can't start
+	# an execution). n8n still verifies token + signature itself.
+	@loan_event {
+		method POST
+		path /webhook/lendloop/loan-event
+		header X-LendLoop-Token {env.LENDLOOP_WEBHOOK_TOKEN}
+	}
+	handle @loan_event {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy n8n:5678
+	}
+
+	# Everything else, including requests with a missing/wrong token (editor, REST API, test webhooks, other paths, other methods).
+	handle {
+		respond "Not found" 404
+	}
+}

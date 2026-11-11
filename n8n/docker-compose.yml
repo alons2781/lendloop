@@ -1,0 +1,66 @@
+# Local n8n for LendLoop. Start with:  cd n8n && cp .env.example .env && docker compose up -d
+# n8n editor:  http://localhost:5678      Mailpit inbox (catches emails): http://localhost:8025
+services:
+  n8n:
+    image: n8nio/n8n:2.47.3
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678" # loopback only; put a reverse proxy in front in production
+    environment:
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-UTC}
+      - TZ=${GENERIC_TIMEZONE:-UTC}
+      - WEBHOOK_URL=${N8N_PUBLIC_URL:-http://localhost:5678}/
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env}
+      # The Code nodes verify HMAC signatures, so they need crypto and env access.
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      # Secrets and settings the workflows read via $env (never stored in workflow JSON)
+      - LENDLOOP_WEBHOOK_SECRET=${LENDLOOP_WEBHOOK_SECRET:?set LENDLOOP_WEBHOOK_SECRET in .env}
+      - LENDLOOP_WEBHOOK_TOKEN=${LENDLOOP_WEBHOOK_TOKEN:?set LENDLOOP_WEBHOOK_TOKEN in .env}
+      # n8n -> Convex calls (overdue reminders). Separate from the webhook secret above.
+      - LENDLOOP_API_SECRET=${LENDLOOP_API_SECRET:?set LENDLOOP_API_SECRET in .env}
+      - LENDLOOP_API_TOKEN=${LENDLOOP_API_TOKEN:?set LENDLOOP_API_TOKEN in .env}
+      - LENDLOOP_CONVEX_SITE_URL=${LENDLOOP_CONVEX_SITE_URL:?set LENDLOOP_CONVEX_SITE_URL in .env}
+      # Don't keep successful runs (they hold recipient emails); keep failures 7 days.
+      # Run one production execution at a time (the rest queue, FIFO). The dedupe
+      # list lives in workflow static data, which is last-write-wins when two
+      # executions overlap; serializing them removes that race. Manual runs from
+      # the editor are not counted. Raise it only if you move dedupe elsewhere.
+      - N8N_CONCURRENCY_PRODUCTION_LIMIT=1
+      - EXECUTIONS_DATA_SAVE_ON_SUCCESS=none
+      - EXECUTIONS_DATA_SAVE_ON_ERROR=all
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - LENDLOOP_APP_URL=${LENDLOOP_APP_URL:-http://localhost:3000}
+      - LENDLOOP_MAIL_FROM=${LENDLOOP_MAIL_FROM:-LendLoop <no-reply@lendloop.local>}
+      - LENDLOOP_ALERT_EMAIL=${LENDLOOP_ALERT_EMAIL:-alerts@lendloop.local}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/workflows:ro # exported workflow JSON, importable with n8n import:workflow
+      - ./credentials:/credentials:ro # Mailpit SMTP credential (no secrets). For a real SMTP provider, create the credential in the editor instead; never commit passwords.
+    depends_on:
+      - mailpit
+
+  # Only this proxy is meant to be exposed to the internet (via a tunnel or domain).
+  # It forwards just POST /webhook/lendloop/loan-event; see Caddyfile.
+  gate:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080" # point the tunnel / reverse proxy here, not at n8n
+    environment:
+      - LENDLOOP_WEBHOOK_TOKEN=${LENDLOOP_WEBHOOK_TOKEN:?set LENDLOOP_WEBHOOK_TOKEN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - n8n
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025" # web inbox
+    # SMTP on mailpit:1025 inside the compose network only
+
+volumes:
+  n8n_data:
