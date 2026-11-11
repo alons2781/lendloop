@@ -79,34 +79,31 @@ export const request = mutation({
       throw new ConvexError("You can't borrow your own tool");
     }
 
-    // A tool can have only one active loan at a time: either someone's request
-    // is waiting for approval, or it is out with a borrower (until returned).
+    // Several people may have a pending request on the same tool; it only
+    // becomes unavailable once the owner approves one. So reject only when it
+    // is already out with someone, or when this caller already asked for it.
     const existing = await ctx.db
       .query("loans")
       .withIndex("by_tool", (q) => q.eq("toolId", toolId))
       .collect();
-    const active = existing.find(
-      (l) =>
-        l.status === "requested" ||
-        l.status === "approved" ||
-        l.status === "return_pending",
+    const out = existing.find(
+      (l) => l.status === "approved" || l.status === "return_pending",
     );
-    if (active) {
-      const out = active.status !== "requested"; // approved or return_pending
-      if (active.borrowerId === caller.id) {
-        throw new ConvexError(
-          active.status === "return_pending"
-            ? "You returned this tool. Waiting for the owner to confirm"
-            : out
-              ? "You already have this tool"
-              : "You already requested this tool",
-        );
-      }
+    if (out) {
       throw new ConvexError(
-        out
+        out.borrowerId !== caller.id
           ? "This tool is currently with another user"
-          : "This tool already has a pending request",
+          : out.status === "return_pending"
+            ? "You returned this tool. Waiting for the owner to confirm"
+            : "You already have this tool",
       );
+    }
+    if (
+      existing.some(
+        (l) => l.status === "requested" && l.borrowerId === caller.id,
+      )
+    ) {
+      throw new ConvexError("You already requested this tool");
     }
 
     const loanId = await ctx.db.insert("loans", {
@@ -149,8 +146,27 @@ export const respond = mutation({
     if (loan.status !== "requested") {
       throw new ConvexError("Only pending requests can be answered");
     }
-    // No overlap check needed: a tool has at most one active loan (see
-    // `request`), so no other approved loan can exist for this tool.
+    if (decision === "approved") {
+      const siblings = await ctx.db
+        .query("loans")
+        .withIndex("by_tool", (q) => q.eq("toolId", loan.toolId))
+        .collect();
+      if (
+        siblings.some(
+          (l) => l.status === "approved" || l.status === "return_pending",
+        )
+      ) {
+        throw new ConvexError("This tool is already out on loan");
+      }
+      // Approving one request takes the tool off the shelf, so the other
+      // pending requests for it are declined (and those borrowers notified).
+      for (const other of siblings) {
+        if (other._id !== loanId && other.status === "requested") {
+          await ctx.db.patch(other._id, { status: "declined" });
+          await notify(ctx, other._id, "loan.declined");
+        }
+      }
+    }
     await ctx.db.patch(loanId, { status: decision });
     await notify(
       ctx,

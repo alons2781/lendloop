@@ -32,12 +32,13 @@ function cleanToolFields(
   };
 }
 
+// A pending request does not lock a tool: several people can ask for it, and it
+// only becomes unavailable once the owner approves one of them.
 type Availability =
   | "available"
   | "requested_by_me"
   | "with_me"
   | "returning_by_me"
-  | "requested"
   | "on_loan";
 
 /** True while the tool is out with a borrower (approved, or return unconfirmed). */
@@ -68,7 +69,7 @@ export const listPublic = query({
   args: {},
   handler: async (ctx) => {
     const tools = await ctx.db.query("tools").order("desc").take(100);
-    // "Currently available": hide anything requested or out on loan.
+    // "Currently available": hide anything out on loan (pending requests don't count).
     const available = [];
     for (const t of tools) {
       const loans = await ctx.db
@@ -76,10 +77,7 @@ export const listPublic = query({
         .withIndex("by_tool", (q) => q.eq("toolId", t._id))
         .collect();
       const inUse = loans.some(
-        (l) =>
-          l.status === "requested" ||
-          l.status === "approved" ||
-          l.status === "return_pending",
+        (l) => l.status === "approved" || l.status === "return_pending",
       );
       if (!inUse) {
         available.push({ _id: t._id, name: t.name, category: t.category });
@@ -117,7 +115,7 @@ export const listAll = query({
     }
 
     // Availability, without revealing who else is involved:
-    // "available" | "requested_by_me" | "with_me" | "requested" | "on_loan"
+    // "available" | "requested_by_me" | "with_me" | "returning_by_me" | "on_loan"
     const result = [];
     for (const t of tools) {
       const loans = await ctx.db
@@ -127,23 +125,21 @@ export const listAll = query({
       const borrowed = loans.some(
         (l) => l.status === "approved" || l.status === "return_pending",
       );
-      const active = loans.find(
-        (l) =>
-          l.status === "requested" ||
-          l.status === "approved" ||
-          l.status === "return_pending",
+      const out = loans.find(
+        (l) => l.status === "approved" || l.status === "return_pending",
       );
-      const availability: Availability = !active
-        ? "available"
-        : active.borrowerId === caller.id
-          ? active.status === "approved"
+      const myRequest = loans.some(
+        (l) => l.status === "requested" && l.borrowerId === caller.id,
+      );
+      const availability: Availability = out
+        ? out.borrowerId === caller.id
+          ? out.status === "approved"
             ? "with_me"
-            : active.status === "return_pending"
-              ? "returning_by_me"
-              : "requested_by_me"
-          : active.status === "requested"
-            ? "requested"
-            : "on_loan";
+            : "returning_by_me"
+          : "on_loan"
+        : myRequest
+          ? "requested_by_me"
+          : "available";
       result.push({
         _id: t._id,
         name: t.name,
